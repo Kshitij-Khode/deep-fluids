@@ -66,12 +66,18 @@ def advect():
 	res_y = args.resolution_y
 	gs = vec3(res_x, res_y, 1)
 
+	print('PreSolver')
+
 	s = Solver(name='main', gridSize=gs, dim=2)
 	s.timestep = args.time_step
-	
+
+	print('PreSolverCreate')
+
 	flags = s.create(FlagGrid)
 	vel = s.create(MACGrid)
 	density = s.create(RealGrid)
+
+	print('PreDomainInit')
 
 	flags.initDomain(boundaryWidth=args.bWidth)
 	flags.fillGrid()
@@ -80,13 +86,19 @@ def advect():
 
 	source = s.create(Sphere, center=gs*vec3(p1_,args.src_y_pos,0.5), radius=gs.x*p2_)
 
-	if (GUI):
-		gui = Gui()
-		gui.show(True)
-		gui.nextVec3Display()
-		gui.nextVec3Display()
-		gui.nextVec3Display()
-		gui.pause()
+	print('PreDomainCreate')
+
+	# if (GUI):
+	# 	print('PreGuiInit')
+	# 	gui = Gui()
+	# 	gui.show(True)
+	# 	gui.nextVec3Display()
+	# 	gui.nextVec3Display()
+	# 	gui.nextVec3Display()
+	# 	print('PreGuiDone')
+	#	gui.pause()
+
+	print('PreNpRead')
 
 	d_ = np.zeros([res_y, res_x], dtype=np.float32)
 	for t in trange(args.num_frames):
@@ -95,18 +107,26 @@ def advect():
 			v = data['x']
 			v = np.dstack((v,np.zeros([res_y, res_x, 1])))
 
+		print('NpRead')
+
 		copyArrayToGridMAC(v, vel)
-		source.applyToGrid(grid=density, value=1)			
+		source.applyToGrid(grid=density, value=1)
 		advectSemiLagrange(flags=flags, vel=vel, grid=density, order=args.adv_order,
 							openBounds=True, boundaryWidth=args.bWidth, clampMode=args.clamp_mode)
 		copyGridToArrayReal(density, d_)
 
+		print('NpLagrange')
+
 		img_path = os.path.join(img_dir, '%04d.png' % t)
+		print(img_path)
+
 		d_img = d_[::-1]*255
 		d_img = np.stack((d_img,d_img,d_img), axis=-1).astype(np.uint8)
 		d_img = Image.fromarray(d_img)
 		d_img.save(img_path)
+		print('PreStepNext')
 		s.step()
+		print('PostStepNext')
 
 def main():
 	if not os.path.exists(args.log_dir):
@@ -125,7 +145,7 @@ def main():
 			print('  %s: %s' % (k, v))
 			f.write('%s: %s\n' % (k, v))
 
-	p1_space = np.linspace(args.min_src_x_pos, 
+	p1_space = np.linspace(args.min_src_x_pos,
 						   args.max_src_x_pos,
 						   args.num_src_x_pos)
 	p2_space = np.linspace(args.min_src_radius,
@@ -155,7 +175,7 @@ def main():
 
 	s = Solver(name='main', gridSize=gs, dim=2)
 	s.timestep = args.time_step
-	
+
 	flags = s.create(FlagGrid)
 	vel = s.create(MACGrid)
 	density = s.create(RealGrid)
@@ -178,11 +198,11 @@ def main():
 		density.clear()
 		pressure.clear()
 		stream.clear()
-		
+
 		p0, p1 = p_list[i][0], p_list[i][1]
 		radius = gs.x*p1
 		source = s.create(Sphere, center=gs*vec3(p0,args.src_y_pos,0.5), radius=radius)
-		
+
 		for t in trange(args.num_frames, desc='sim'):
 			source.applyToGrid(grid=density, value=1)
 			advectSemiLagrange(flags=flags, vel=vel, grid=density, order=args.adv_order,
@@ -194,12 +214,12 @@ def main():
 			solvePressure(flags=flags, vel=vel, pressure=pressure, cgMaxIterFac=10.0, cgAccuracy=0.0001)
 			setWallBcs(flags=flags, vel=vel)
 			# getStreamfunction(flags=flags, vel=vel, grid=stream)
-		
+
 			copyGridToArrayMAC(vel, v_)
 			# copyGridToArrayReal(density, d_)
 			# copyGridToArrayReal(pressure, p_)
 			# copyGridToArrayReal(stream, s_)
-			
+
 			v_range = [np.minimum(v_range[0], v_.min()),
 					   np.maximum(v_range[1], v_.max())]
 			# d_range = [np.minimum(d_range[0], d_.min()),
@@ -213,7 +233,7 @@ def main():
 			pit = tuple(pi_list[i].tolist() + [t])
 
 			v_file_path = os.path.join(args.log_dir, 'v', args.path_format % pit)
-			np.savez_compressed(v_file_path, 
+			np.savez_compressed(v_file_path,
 								x=v_[...,:2],
 								y=param_)
 
@@ -224,8 +244,10 @@ def main():
 			# d_img.save(d_file_path)
 
 			s.step()
-		
+			# break
+
 		gc.collect()
+		# break
 
 	vrange_file = os.path.join(args.log_dir, 'v_range.txt')
 	with open(vrange_file, 'w') as f:
