@@ -24,7 +24,7 @@ class Trainer(object):
         if 'nn' in self.arch:
             self.xt, self.yt = batch_manager.test_batch()
             self.xtw, self.ytw = batch_manager.test_batch(is_window=True)
-            self.xw, self.yw = batch_manager.batch(is_window=True)            
+            self.xw, self.yw = batch_manager.batch(is_window=True)
         else:
             if self.is_3d:
                 self.x_jaco, self.x_vort = jacobian3(self.x)
@@ -57,7 +57,7 @@ class Trainer(object):
         self.optimizer = config.optimizer
         self.beta1 = config.beta1
         self.beta2 = config.beta2
-                
+
         self.model_dir = config.model_dir
         self.load_path = config.load_path
 
@@ -71,11 +71,11 @@ class Trainer(object):
             lr_min = config.lr_min
             lr_max = config.lr_max
             self.g_lr = tf.Variable(lr_max, name='g_lr')
-            self.g_lr_update = tf.assign(self.g_lr, 
+            self.g_lr_update = tf.assign(self.g_lr,
                lr_min+0.5*(lr_max-lr_min)*(tf.cos(tf.cast(self.step, tf.float32)*np.pi/self.max_step)+1), name='g_lr_update')
         elif self.lr_update == 'step':
             self.g_lr = tf.Variable(config.lr_max, name='g_lr')
-            self.g_lr_update = tf.assign(self.g_lr, tf.maximum(self.g_lr*0.5, config.lr_min), name='g_lr_update')    
+            self.g_lr_update = tf.assign(self.g_lr, tf.maximum(self.g_lr*0.5, config.lr_min), name='g_lr_update')
         else:
             raise Exception("[!] Invalid lr update method")
 
@@ -125,7 +125,7 @@ class Trainer(object):
         if 'nn' in self.arch:
             self.batch_manager.init_it(self.sess)
             self.log_step = batch_manager.train_steps
-        
+
         elif self.is_train:
             self.batch_manager.start_thread(self.sess)
 
@@ -135,7 +135,7 @@ class Trainer(object):
 
     def build_model(self):
         if self.use_c:
-            self.G_s, self.G_var = GeneratorBE(self.y, self.filters, self.output_shape, 
+            self.G_s, self.G_var = GeneratorBE(self.y, self.filters, self.output_shape,
                                                num_conv=self.num_conv, repeat=self.repeat)
             self.G_ = curl(self.G_s)
         else:
@@ -145,7 +145,7 @@ class Trainer(object):
 
         self.G_jaco_, self.G_vort_ = jacobian(self.G_)
         self.G_vort = denorm_img(self.G_vort_)
-        
+
         if 'dg' in self.arch:
             # discriminator
             # self.D_x, self.D_var = DiscriminatorPatch(self.x, self.filters)
@@ -154,7 +154,7 @@ class Trainer(object):
             self.D_x, self.D_var = DiscriminatorPatch(D_in, self.filters)
             G_in = tf.concat([self.G_, self.G_vort_], axis=-1)
             self.D_G, _ = DiscriminatorPatch(G_in, self.filters, reuse=True)
-        
+
         show_all_variables()
 
         if self.optimizer == 'adam':
@@ -170,7 +170,7 @@ class Trainer(object):
         self.g_loss_l1 = tf.reduce_mean(tf.abs(self.G_ - self.x))
         self.g_loss_j_l1 = tf.reduce_mean(tf.abs(self.G_jaco_ - self.x_jaco))
         self.g_loss = self.g_loss_l1*self.w1 + self.g_loss_j_l1*self.w2
-        
+
         if 'dg' in self.arch:
             self.g_loss_real = tf.reduce_mean(tf.square(self.D_G-1))
             self.d_loss_fake = tf.reduce_mean(tf.square(self.D_G))
@@ -188,7 +188,7 @@ class Trainer(object):
         summary = [
             tf.summary.image("x/G", self.G[:,::-1]),
             tf.summary.image("x/G_vort", self.G_vort[:,::-1]),
-            
+
             tf.summary.scalar("loss/g_loss", self.g_loss),
             tf.summary.scalar("loss/g_loss_l1", self.g_loss_l1),
             tf.summary.scalar("loss/g_loss_j_l1", self.g_loss_j_l1),
@@ -214,7 +214,7 @@ class Trainer(object):
             ]
 
         self.summary_op = tf.summary.merge(summary)
-        
+
         summary = [
             tf.summary.image("x/x", denorm_img(self.x)[:,::-1]),
             tf.summary.image("x/vort", denorm_img(self.x_vort)[:,::-1]),
@@ -250,8 +250,8 @@ class Trainer(object):
         with open('{}/x_fixed_gt.txt'.format(self.model_dir), 'w') as f:
             f.write(str(pi) + '\n')
             f.write(str(zi_))
-        
-        zi = np.zeros(shape=z_shape)            
+
+        zi = np.zeros(shape=z_shape)
         for i, z_gt in enumerate(zi_):
             zi[i,:] = z_gt
         z_samples.append(zi)
@@ -260,7 +260,7 @@ class Trainer(object):
         summary_once = self.sess.run(self.summary_once)
         self.summary_writer.add_summary(summary_once, 0)
         self.summary_writer.flush()
-        
+
         # train
         for step in trange(self.start_step, self.max_step):
             if 'dg' in self.arch:
@@ -313,7 +313,7 @@ class Trainer(object):
 
     def test_(self):
         self.build_test_model()
-        
+
         p1, p2 = 10, 2
 
         # eval
@@ -339,7 +339,15 @@ class Trainer(object):
         G = []
         for b in range(niter):
             G_ = self.sess.run(self.G_, {self.z: z_c[self.test_b_num*b:self.test_b_num*(b+1),:]})
+
+            print('G_.shape')
+            print(G_.shape)
+
             G_, _ = self.batch_manager.denorm(x=G_)
+
+            print('G_.shape')
+            print(G_.shape)
+
             G.append(G_)
         G = np.concatenate(G, axis=0)
 
@@ -350,9 +358,29 @@ class Trainer(object):
             os.makedirs(out_dir)
 
         for i, G_ in enumerate(G):
-            dump_path = os.path.join(out_dir, '%d.npz' % i)
-            np.savez_compressed(dump_path, x=G_)
+            # dump_path = os.path.join(out_dir, '%d.npz' % i)
+            # np.savez_compressed(dump_path, x=G_)
 
+            print('dims')
+            print(G_.shape)
+
+            with open(os.path.join(out_dir, '%d-0.fga' % i), 'w') as f:
+                f.write('64,96,64,0.0,0.0,0.0,1.0,1.0,1.0')
+                for fd in range(64):
+                    for sd in range(96):
+                        for td in range(64):
+                            f.write(',%s' % G_[fd,sd,td,0,0])
+                            f.write(',%s' % G_[fd,sd,td,1,0])
+                            f.write(',%s' % G_[fd,sd,td,2,0])
+
+            with open(os.path.join(out_dir, '%d-1.fga' % i), 'w') as f:
+                f.write('64,96,64,0.0,0.0,0.0,1.0,1.0,1.0')
+                for fd in range(64):
+                    for sd in range(96):
+                        for td in range(64):
+                            f.write(',%s' % G_[fd,sd,td,0,1])
+                            f.write(',%s' % G_[fd,sd,td,1,1])
+                            f.write(',%s' % G_[fd,sd,td,2,1])
 
     def build_model_ae(self):
         if self.use_c:
@@ -381,11 +409,11 @@ class Trainer(object):
         # losses
         self.loss_l1 = tf.reduce_mean(tf.abs(self.x_ - self.x))
         self.loss_j_l1 = tf.reduce_mean(tf.abs(self.x_jaco_ - self.x_jaco))
-        
+
         y = self.y[:,:,-1]
         self.loss_p = tf.reduce_mean(tf.squared_difference(y, self.z[:,-self.p_num:]))
         self.loss = self.loss_l1*self.w1 + self.loss_j_l1*self.w2 + self.loss_p*self.w4
-        
+
         if self.use_sparse:
             ds = tf.distributions
             rho = ds.Bernoulli(probs=self.sparsity)
@@ -400,7 +428,7 @@ class Trainer(object):
         summary = [
             tf.summary.image("x", self.x_img[:,::-1]),
             tf.summary.image("x_vort", self.x_vort_[:,::-1]),
-            
+
             tf.summary.scalar("loss/total_loss", self.loss),
             tf.summary.scalar("loss/loss_l1", self.loss_l1),
             tf.summary.scalar("loss/loss_j_l1", self.loss_j_l1),
@@ -430,8 +458,8 @@ class Trainer(object):
 
         with open('{}/x_fixed_gt.txt'.format(self.model_dir), 'w') as f:
             f.write(str(pi) + '\n')
-            f.write(str(zi_))        
-        
+            f.write(str(zi_))
+
         # train
         for step in trange(self.start_step, self.max_step):
             self.sess.run(self.optim)
@@ -494,7 +522,7 @@ class Trainer(object):
                 dx_list = (nx[:,1:] - nx[:,:-1]).reshape([-1, 1])
                 p_list = dx_list
 
-            from tqdm import tqdm            
+            from tqdm import tqdm
             c_list = []
             num_iter = num_sims*num_frames/self.test_b_num
             for x, _ in tqdm(self.batch_manager.batch_(self.test_b_num),
@@ -505,20 +533,20 @@ class Trainer(object):
             c_list = np.concatenate(c_list)
             x_list = []
             y_list = []
-            
+
             for i in range(num_sims):
                 s1 = i*num_frames
                 s2 = (i+1)*num_frames
                 x_list.append(c_list[s1:s2-1,:])
                 y_list.append(c_list[s1+1:s2,:])
-            
+
             x_list = np.concatenate(x_list)
-            y_list = np.concatenate(y_list)        
+            y_list = np.concatenate(y_list)
             print(x_list.shape, y_list.shape, p_list.shape)
 
             code_path = os.path.join(self.load_path, 'code%d.npz' % self.z_num)
             np.savez_compressed(code_path,
-                                x=x_list, 
+                                x=x_list,
                                 y=y_list,
                                 p=p_list,
                                 s=num_sims,
@@ -529,7 +557,7 @@ class Trainer(object):
             with np.load(code_path) as data:
                 z_ = data['z_out']
                 z_gt_ = data['z_gt']
-            
+
             num_sims = z_.shape[0]
             num_frames = z_[0].shape[0]
             num_iters = int(num_frames / self.test_b_num)
@@ -609,7 +637,7 @@ class Trainer(object):
                 # re-normalized to the scale of x
                 y_ *= (self.batch_manager.out_std / self.batch_manager.code_std)
                 yt_ *= (self.batch_manager.out_std / self.batch_manager.code_std)
-                
+
                 x_ = tf.concat([tf.add(x_[:,:-self.p_num], y_), self.xw[:,i+1,-self.p_num:]], axis=-1)
                 xt_ = tf.concat([tf.add(xt_[:,:-self.p_num], yt_), self.xtw[:,i+1,-self.p_num:]], axis=-1)
 
@@ -624,7 +652,7 @@ class Trainer(object):
             raise Exception("[!] Caution! Paper didn't use {} opimizer other than Adam".format(self.optimizer))
 
         optimizer = optimizer(self.g_lr, beta1=self.beta1, beta2=self.beta2)
-        
+
         # losses
         self.loss_train = tf.losses.mean_squared_error(self.y, self.y_)
         self.loss_train_w = tf.losses.mean_squared_error(self.yw, self.yw_)
@@ -647,7 +675,7 @@ class Trainer(object):
             tf.summary.scalar("loss/loss_test", self.loss_test),
             tf.summary.scalar("loss/loss_train_w", self.loss_train_w),
             tf.summary.scalar("loss/loss_test_w", self.loss_test_w),
-            
+
             tf.summary.scalar("misc/lr", self.g_lr),
             tf.summary.scalar("misc/epoch", self.epoch),
         ]
@@ -740,18 +768,18 @@ class Trainer(object):
         # diff_path = os.path.join(self.load_path, '%s.npz' % self.load_path.split('/')[-1])
         # np.savez_compressed(diff_path, z=z_diff)
         # # exit()
-        
+
         code_path = os.path.join(self.load_path, 'code_out.npz')
         np.savez_compressed(code_path,
-							z_out=z_out, 
+							z_out=z_out,
                             z_gt=z_gt)
 
-    
+
     def generate(self, inputs, root_path=None, idx=None):
         generated = []
         for i, z_sample in enumerate(inputs):
             generated.append(self.sess.run(self.G, {self.y: z_sample}))
-            
+
         c_concat = np.concatenate(tuple(generated[:-1]), axis=0)
         c_path = os.path.join(root_path, '{}_c.png'.format(idx))
         save_image(c_concat, c_path, nrow=self.b_num)

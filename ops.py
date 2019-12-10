@@ -262,13 +262,39 @@ def jacobian3(x):
     return j, c
     
 def curl(x, data_format='NHWC'):
+
+    print('x.shape')
+    print(x.shape)
+
     if data_format == 'NCHW': x = nchw_to_nhwc(x)
 
-    u = x[:,1:,:,0] - x[:,:-1,:,0] # ds/dy
-    v = x[:,:,:-1,0] - x[:,:,1:,0] # -ds/dx,
+    print('x.shape')
+    print(x.shape)
+
+    u = x[:,1:,:,:] - x[:,:-1,:,:] # ds/dy
+
+    print('u.shape')
+    print(u.shape)
+
+    v = x[:,:,:-1,:] - x[:,:,1:,:] # -ds/dx,
+
+    print('v.shape')
+    print(v.shape)
+
     u = tf.concat([u, tf.expand_dims(u[:,-1,:], axis=1)], axis=1)
+
+    print('u.shape')
+    print(u.shape)
+
     v = tf.concat([v, tf.expand_dims(v[:,:,-1], axis=2)], axis=2)
+
+    print('v.shape')
+    print(v.shape)
+
     c = tf.stack([u,v], axis=-1)
+
+    print('c.shape')
+    print(c.shape)
 
     if data_format == 'NCHW': c = nhwc_to_nchw(c)
     return c

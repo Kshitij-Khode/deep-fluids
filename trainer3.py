@@ -13,17 +13,33 @@ from trainer import Trainer
 class Trainer3(Trainer):
     def build_model(self):
         if self.use_c:
-            self.G_s, self.G_var = GeneratorBE3(self.y, self.filters, self.output_shape, 
+            self.G_s, self.G_var = GeneratorBE3(self.y, self.filters, self.output_shape,
                                                num_conv=self.num_conv, repeat=self.repeat)
+            print('G_s.shape:')
+            print(self.G_s.shape)
             _, self.G_ = jacobian3(self.G_s)
+            print('G_.shape:')
+            print(self.G_.shape)
         else:
             self.G_, self.G_var = GeneratorBE3(self.y, self.filters, self.output_shape,
                                               num_conv=self.num_conv, repeat=self.repeat)
         self.G = denorm_img3(self.G_) # for debug
 
+        for key in self.G.keys():
+            print('self.G[%s].shape:' % key)
+            print(self.G[key].shape)
+
         self.G_jaco_, self.G_vort_ = jacobian3(self.G_)
+
+        print('self.G_vort_.shape:')
+        print(self.G_vort_.shape)
+
         self.G_vort = denorm_img3(self.G_vort_)
-        
+
+        for key in self.G_vort.keys():
+            print('self.G_vort[%s].shape:' % key)
+            print(self.G_vort[key].shape)
+
         if 'dg' in self.arch:
             # discriminator
             # self.D_x, self.D_var = DiscriminatorPatch3(self.x, self.filters)
@@ -69,12 +85,12 @@ class Trainer3(Trainer):
             # tf.summary.image("zy/G", self.G['zy']),
             tf.summary.image("xym/G", self.G['xym'][:,::-1]),
             tf.summary.image("zym/G", self.G['zym'][:,::-1]),
-            
+
             # tf.summary.image("xy/G_vort", self.G_vort['xy']),
             # tf.summary.image("zy/G_vort", self.G_vort['zy']),
             tf.summary.image("xym/G_vort", self.G_vort['xym'][:,::-1]),
             tf.summary.image("zym/G_vort", self.G_vort['zym'][:,::-1]),
-            
+
             tf.summary.scalar("loss/g_loss", self.g_loss),
             tf.summary.scalar("loss/g_loss_l1", self.g_loss_l1),
             tf.summary.scalar("loss/g_loss_j_l1", self.g_loss_j_l1),
@@ -99,7 +115,7 @@ class Trainer3(Trainer):
         # summary once
         x = denorm_img3(self.x)
         x_vort = denorm_img3(self.x_vort)
-        
+
         summary = [
             tf.summary.image("xym/x", x['xym'][:,::-1]),
             tf.summary.image("zym/x", x['zym'][:,::-1]),
@@ -138,7 +154,7 @@ class Trainer3(Trainer):
             f.write(str(gen_list['p']) + '\n')
             f.write(str(gen_list['z']))
 
-        zi = np.zeros(shape=z_shape)            
+        zi = np.zeros(shape=z_shape)
         for i, z_gt in enumerate(gen_list['z']):
             zi[i,:] = z_gt
         z_samples.append(zi)
@@ -147,7 +163,7 @@ class Trainer3(Trainer):
         summary_once = self.sess.run(self.summary_once)
         self.summary_writer.add_summary(summary_once, 0)
         self.summary_writer.flush()
-        
+
         # train
         for step in trange(self.start_step, self.max_step):
             if 'dg' in self.arch:
@@ -185,11 +201,17 @@ class Trainer3(Trainer):
         if self.use_c:
             self.G_s, _ = GeneratorBE3(self.z, self.filters, self.output_shape,
                                       num_conv=self.num_conv, repeat=self.repeat, reuse=True)
+            print('G_s.shape')
+            print(self.G_s.shape)
             self.G_ = curl(self.G_s)
+            print('G_.shape')
+            print(self.G_.shape)
         else:
             self.G_, _ = GeneratorBE3(self.z, self.filters, self.output_shape,
-                                     num_conv=self.num_conv, repeat=self.repeat, reuse=True)        
-    
+                                     num_conv=self.num_conv, repeat=self.repeat, reuse=True)
+            # self.G_ = denorm_img3(self.G_) # for debug
+
+
     def generate(self, inputs, root_path=None, idx=None):
         # xy_list = []
         # zy_list = []
@@ -202,15 +224,25 @@ class Trainer3(Trainer):
         zymw_list = []
 
         for _, z_sample in enumerate(inputs):
-            xym, zym = self.sess.run( # xy, zy, 
-                [self.G['xym'], self.G['zym']], {self.y: z_sample}) # self.G['xy'], self.G['zy'], 
+            xym, zym = self.sess.run( # xy, zy,
+                [self.G['xym'], self.G['zym']], {self.y: z_sample}) # self.G['xy'], self.G['zy'],
+            print('xym.shape:')
+            print(xym.shape)
+            print('zym.shape:')
+            print(zym.shape)
+
             # xy_list.append(xy)
             # zy_list.append(zy)
             xym_list.append(xym)
             zym_list.append(zym)
 
-            xym, zym = self.sess.run( # xy, zy, 
-                [self.G_vort['xym'], self.G_vort['zym']], {self.y: z_sample}) # self.G_vort['xy'], self.G_vort['zy'], 
+            xym, zym = self.sess.run( # xy, zy,
+                [self.G_vort['xym'], self.G_vort['zym']], {self.y: z_sample}) # self.G_vort['xy'], self.G_vort['zy'],
+            print('xym.shape:')
+            print(xym.shape)
+            print('zym.shape:')
+            print(zym.shape)
+
             # xyw_list.append(xy)
             # zyw_list.append(zy)
             xymw_list.append(xym)
@@ -220,7 +252,7 @@ class Trainer3(Trainer):
         zym_list = zym_list[:-1] + zymw_list[:-1] + [zym_list[-1]] + [zymw_list[-1]]
 
         for tag, generated in zip(['xym','zym'], # '0_xy','0_zy',
-                                  [xym_list, zym_list]): # xy_list, zy_list, 
+                                  [xym_list, zym_list]): # xy_list, zy_list,
             c_concat = np.concatenate(tuple(generated[:-2]), axis=0)
             c_path = os.path.join(root_path, '{}_{}.png'.format(idx,tag))
             save_image(c_concat, c_path, nrow=self.b_num, padding=1)
@@ -235,7 +267,7 @@ class Trainer3(Trainer):
         x_zy_path = os.path.join(root_path, 'x_fixed_zym_{}.png'.format(idx))
         save_image(gen_random, x_zy_path, nrow=self.b_num, padding=1)
         print("[*] Samples saved: {}".format(x_zy_path))
-        
+
 
     def build_model_ae(self):
         if self.use_c:
@@ -264,11 +296,11 @@ class Trainer3(Trainer):
         # losses
         self.loss_l1 = tf.reduce_mean(tf.abs(self.x_ - self.x))
         self.loss_j_l1 = tf.reduce_mean(tf.abs(self.x_jaco_ - self.x_jaco))
-        
+
         y = self.y[:,:,-1]
         self.loss_p = tf.reduce_mean(tf.squared_difference(y, self.z[:,-self.p_num:]))
         self.loss = self.loss_l1*self.w1 + self.loss_j_l1*self.w2 + self.loss_p*self.w4
-        
+
         if self.use_sparse:
             ds = tf.distributions
             rho = ds.Bernoulli(probs=self.sparsity)
@@ -286,7 +318,7 @@ class Trainer3(Trainer):
 
             tf.summary.image("x/vort_xym", self.x_vort_['xym'][:,::-1]),
             tf.summary.image("x/vort_zym", self.x_vort_['zym'][:,::-1]),
-            
+
             tf.summary.scalar("loss/total_loss", self.loss),
             tf.summary.scalar("loss/loss_l1", self.loss_l1),
             tf.summary.scalar("loss/loss_j_l1", self.loss_j_l1),
@@ -309,13 +341,13 @@ class Trainer3(Trainer):
         self.summary_op = tf.summary.merge(summary)
 
     def train_ae(self):
-        sample = self.batch_manager.random_list(self.b_num)    
+        sample = self.batch_manager.random_list(self.b_num)
         save_image(sample['xym'], '{}/xym_gt.png'.format(self.model_dir), nrow=self.b_num)
         save_image(sample['zym'], '{}/zym_gt.png'.format(self.model_dir), nrow=self.b_num)
         with open('{}/x_fixed_gt.txt'.format(self.model_dir), 'w') as f:
             f.write(str(sample['p']))
             f.write(str(sample['z']))
-        
+
         # train
         for step in trange(self.start_step, self.max_step):
             self.sess.run(self.optim)
