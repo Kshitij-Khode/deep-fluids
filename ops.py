@@ -8,7 +8,7 @@ import numpy as np
 
 def lrelu(x, leak=0.2):
     return tf.maximum(x, leak*x)
-   
+
 def conv2d(x, o_dim, data_format='NHWC', name=None, k=4, s=2, act=None):
     return slim.conv2d(x, o_dim, k, stride=s, activation_fn=act, scope=name, data_format=data_format)
 
@@ -56,7 +56,7 @@ def inst_norm(x, train, data_format='NHWC', name=None, affine=False, act=lrelu, 
             out = scale*normalized + shift
         else:
             out = normalized
-        
+
         if x.get_shape().ndims == 4 and data_format == 'NCHW':
             out = nhwc_to_nchw(out)
 
@@ -86,7 +86,7 @@ def upscale3(x, scale):
     hw = tf.reshape(hw, [b,h,w,d,c])
 
     dh = tf.reshape(tf.transpose(hw, [0,3,1,2,4]), [b,d,h,w*c])
-    d *= scale    
+    d *= scale
     dh = tf.image.resize_nearest_neighbor(dh, (d,h))
     return tf.reshape(dh, [b,d,h,w,c])
 
@@ -163,12 +163,12 @@ def denorm_img(norm, data_format='NHWC'):
 def plane_view(x, xy_plane=True, project=True):
     x_shape = int_shape(x) # bzyxd
     c_id = [int(x_shape[1]/2), int(x_shape[3]/2)]
-    
+
     if xy_plane:
         if project:
             x = tf.reduce_mean(x, 1)
         else:
-            x = tf.squeeze(tf.slice(x, [0,c_id[0],0,0,0], [-1,1,-1,-1,-1]), [1])            
+            x = tf.squeeze(tf.slice(x, [0,c_id[0],0,0,0], [-1,1,-1,-1,-1]), [1])
     else:
         if project:
             x = tf.transpose(tf.reduce_mean(x, 3), [0,2,1,3])
@@ -186,6 +186,9 @@ def denorm_img3(x):
     xym = plane_view(x, xy_plane=True, project=False)
     zym = plane_view(x, xy_plane=False, project=False)
     return {'xy': xy, 'zy': zy, 'xym': xym, 'zym': zym}
+
+def denorm_gen(x):
+    return tf.cast(tf.clip_by_value((x + 1)*127.5, 0, 255), tf.uint8)
 
 def slerp(val, low, high):
     """Code from https://github.com/soumith/dcgan.torch/issues/14"""
@@ -210,7 +213,7 @@ def jacobian(x, data_format='NHCW'):
     dudy = x[:,1:,:,0] - x[:,:-1,:,0]
     dvdx = x[:,:,1:,1] - x[:,:,:-1,1]
     dvdy = x[:,1:,:,1] - x[:,:-1,:,1]
-    
+
     dudx = tf.concat([dudx,tf.expand_dims(dudx[:,:,-1], axis=2)], axis=2)
     dvdx = tf.concat([dvdx,tf.expand_dims(dvdx[:,:,-1], axis=2)], axis=2)
     dudy = tf.concat([dudy,tf.expand_dims(dudy[:,-1,:], axis=1)], axis=1)
@@ -255,12 +258,12 @@ def jacobian3(x):
     u = dwdy - dvdz
     v = dudz - dwdx
     w = dvdx - dudy
-    
+
     j = tf.stack([dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz], axis=-1)
     c = tf.stack([u,v,w], axis=-1)
-    
+
     return j, c
-    
+
 def curl(x, data_format='NHWC'):
 
     print('x.shape')
@@ -298,7 +301,7 @@ def curl(x, data_format='NHWC'):
 
     if data_format == 'NCHW': c = nhwc_to_nchw(c)
     return c
-    
+
 def divergence(x, data_format='NHWC'):
     if data_format == 'NCHW': x = nchw_to_nhwc(x)
 
@@ -352,7 +355,7 @@ def grad_np(x):
 def plane_view_np(x, xy_plane=True, project=True):
     x_shape = x.shape # zyxd
     c_id = [int(x_shape[0]/2), int(x_shape[2]/2)]
-    
+
     if xy_plane:
         if project:
             x = np.mean(x, axis=0)
@@ -394,7 +397,7 @@ def jacobian_np3(x):
     u = dwdy - dvdz
     v = dudz - dwdx
     w = dvdx - dudy
-    
+
     j = np.stack([dudx,dudy,dudz,dvdx,dvdy,dvdz,dwdx,dwdy,dwdz], axis=-1)
     c = np.stack([u,v,w], axis=-1)
     return j, c
@@ -424,7 +427,7 @@ def fspecial_gauss(size, sigma, channels):
 
     y = y.reshape(y.shape+(1,1))
     y = np.repeat(y, channels, axis=2)
-    y = np.repeat(y, channels, axis=3)        
+    y = np.repeat(y, channels, axis=3)
 
     x = tf.constant(x, dtype=tf.float32)
     y = tf.constant(y, dtype=tf.float32)
@@ -433,10 +436,10 @@ def fspecial_gauss(size, sigma, channels):
     return g / tf.reduce_sum(g)
 
 
-def ssim(img1, img2, mean_metric=True, 
+def ssim(img1, img2, mean_metric=True,
          filter_size=11, filter_sigma=1.5, k1=0.01, k2=0.03,
          min_val=-1.0, max_val=1.0):
-    
+
     # input should be rescaled to [-1,1]
     img_shape = img1.get_shape()
     height = img_shape[1].value
@@ -468,7 +471,7 @@ def ssim(img1, img2, mean_metric=True,
         sigma11 = img1*img1
         sigma22 = img2*img2
         sigma12 = img1*img2
-    
+
     mu11 = mu1*mu1
     mu22 = mu2*mu2
     mu12 = mu1*mu2
@@ -481,7 +484,7 @@ def ssim(img1, img2, mean_metric=True,
     c2 = (k2*L)**2
     v1 = 2.0 * sigma12 + c2
     v2 = sigma11 + sigma22 + c2
-    value = ((2.0 * mu12 + c1) * v1) / ((mu11 + mu22 + c1) * v2) 
+    value = ((2.0 * mu12 + c1) * v1) / ((mu11 + mu22 + c1) * v2)
     if mean_metric: return tf.reduce_mean(value)
 
     result = {'ssim_map': value, 'cs_map': v1/v2, 'g': window}
@@ -503,11 +506,11 @@ def ms_ssim(img1, img2, mean_metric=True, min_val=-1.0, max_val=1.0):
         img1 = filtered_im1
         img2 = filtered_im2
 
-    # ! doesn't work        
+    # ! doesn't work
     # filter_sigmas = [0.5, 1, 2, 4, 8]
     # cs_map0 = None
-    # for i, filter_sigma in enumerate(filter_sigmas):        
-    #     result = ssim(img1, img2, filter_sigma=filter_sigma, 
+    # for i, filter_sigma in enumerate(filter_sigmas):
+    #     result = ssim(img1, img2, filter_sigma=filter_sigma,
     #                   min_val=min_val, mean_metric=False)
 
     #     if i == 0: cs_map0 = result['cs_map']
@@ -604,5 +607,5 @@ def main(_):
     print('tf_msssim_noise', tf_msssim_noise)
 
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     tf.app.run()

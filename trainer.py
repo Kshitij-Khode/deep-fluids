@@ -339,14 +339,10 @@ class Trainer(object):
         G = []
         for b in range(niter):
             G_ = self.sess.run(self.G_, {self.z: z_c[self.test_b_num*b:self.test_b_num*(b+1),:]})
-
-            print('G_.shape')
-            print(G_.shape)
-
             G_, _ = self.batch_manager.denorm(x=G_)
 
-            print('G_.shape')
-            print(G_.shape)
+            # print('trainer.test_: G_.shape: Post batchDenorm')
+            # print(G_.shape)
 
             G.append(G_)
         G = np.concatenate(G, axis=0)
@@ -358,29 +354,20 @@ class Trainer(object):
             os.makedirs(out_dir)
 
         for i, G_ in enumerate(G):
-            # dump_path = os.path.join(out_dir, '%d.npz' % i)
-            # np.savez_compressed(dump_path, x=G_)
+            dump_path = os.path.join(out_dir, '%d.npz' % i)
+            np.savez_compressed(dump_path, x=G_)
 
-            print('dims')
-            print(G_.shape)
+            # print('trainer.test_: G_.shape: Pre-save')
+            # print(G_.shape)
 
-            with open(os.path.join(out_dir, '%d-0.fga' % i), 'w') as f:
+            with open(os.path.join(out_dir, '%d.fga' % i), 'w') as f:
                 f.write('64,96,64,0.0,0.0,0.0,1.0,1.0,1.0')
                 for fd in range(64):
                     for sd in range(96):
                         for td in range(64):
-                            f.write(',%s' % G_[fd,sd,td,0,0])
-                            f.write(',%s' % G_[fd,sd,td,1,0])
-                            f.write(',%s' % G_[fd,sd,td,2,0])
-
-            with open(os.path.join(out_dir, '%d-1.fga' % i), 'w') as f:
-                f.write('64,96,64,0.0,0.0,0.0,1.0,1.0,1.0')
-                for fd in range(64):
-                    for sd in range(96):
-                        for td in range(64):
-                            f.write(',%s' % G_[fd,sd,td,0,1])
-                            f.write(',%s' % G_[fd,sd,td,1,1])
-                            f.write(',%s' % G_[fd,sd,td,2,1])
+                            f.write(',%s' % G_[fd,sd,td,0])
+                            f.write(',%s' % G_[fd,sd,td,1])
+                            f.write(',%s' % G_[fd,sd,td,2])
 
     def build_model_ae(self):
         if self.use_c:

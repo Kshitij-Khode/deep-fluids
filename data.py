@@ -16,7 +16,7 @@ from ops import *
 class BatchManager(object):
     def __init__(self, config):
         self.rng = np.random.RandomState(config.random_seed)
-        self.root = config.data_path        
+        self.root = config.data_path
 
         # read data generation arguments
         self.args = {}
@@ -37,13 +37,13 @@ class BatchManager(object):
 
             self.paths = sorted(glob("{}/{}/*".format(self.root, config.data_type[0])),
                                 key=sortf)
-            # num_path = len(self.paths)          
+            # num_path = len(self.paths)
             # num_train = int(num_path*0.95)
             # self.test_paths = self.paths[num_train:]
             # self.paths = self.paths[:num_train]
         else:
             self.paths = sorted(glob("{}/{}/*".format(self.root, config.data_type[0])))
-        
+
         self.num_samples = len(self.paths)
         assert(self.num_samples > 0)
         self.batch_size = config.batch_size
@@ -55,7 +55,7 @@ class BatchManager(object):
             else: depth = 2
         else:
             depth = 1
-        
+
         self.res_x = config.res_x
         self.res_y = config.res_y
         self.res_z = config.res_z
@@ -66,7 +66,7 @@ class BatchManager(object):
             feature_dim = [self.res_z, self.res_y, self.res_x, self.depth]
         else:
             feature_dim = [self.res_y, self.res_x, self.depth]
-        
+
         if 'ae' in config.arch:
             self.dof = int(self.args['num_dof'])
             label_dim = [self.dof, int(self.args['num_frames'])]
@@ -123,15 +123,15 @@ class BatchManager(object):
         # Create a method for loading and enqueuing
         def load_n_enqueue(sess, enqueue, coord, paths, rng,
                            x, y, data_type, x_range, y_range):
-            with coord.stop_on_exception():                
+            with coord.stop_on_exception():
                 while not coord.should_stop():
                     id = rng.randint(len(paths))
                     x_, y_ = preprocess(paths[id], data_type, x_range, y_range)
                     sess.run(enqueue, feed_dict={x: x_, y: y_})
 
         # Create threads that enqueue
-        self.threads = [threading.Thread(target=load_n_enqueue, 
-                                          args=(self.sess, 
+        self.threads = [threading.Thread(target=load_n_enqueue,
+                                          args=(self.sess,
                                                 self.enqueue,
                                                 self.coord,
                                                 self.paths,
@@ -185,8 +185,14 @@ class BatchManager(object):
 
     def denorm(self, x=None, y=None):
         # input range [-1, 1] -> original range
+
+        # print('data.denorm: self.x_range: %s' % self.x_range)
+        # print('data.denorm: x[0,0,0,0]: Pre x_range scaling: %s' % x[0,0,0,0])
+
         if x is not None:
             x *= self.x_range
+
+        # print('data.denorm: x[0,0,0,0]: Post x_range scaling: %s' % x[0,0,0,0])
 
         if y is not None:
             r = self.y_range
@@ -247,7 +253,7 @@ class BatchManager(object):
             'p': [],
             'z': [],
         }
-        
+
         for _ in range(num):
             p = []
             for y_max in self.y_num:
@@ -285,7 +291,7 @@ class BatchManager(object):
             sample['zy_c'].append(zy_c)
             sample['xym_c'].append(xym_c)
             sample['zym_c'].append(zym_c)
-            
+
         sample['x'] = np.array(sample['x'])
         sample['y'] = np.array(sample['y'])
 
@@ -306,9 +312,9 @@ class BatchManager(object):
             return self.random_list3d(num)
         else:
             return self.random_list2d(num)
-    
 
-def preprocess(file_path, data_type, x_range, y_range):    
+
+def preprocess(file_path, data_type, x_range, y_range):
     with np.load(file_path) as data:
         x = data['x']
         y = data['y']
@@ -327,7 +333,7 @@ def preprocess(file_path, data_type, x_range, y_range):
         x = x*2 - 1
     else:
         x /= x_range
-        
+
     for i, ri in enumerate(y_range):
         y[i] = (y[i]-ri[0]) / (ri[1]-ri[0]) * 2 - 1
     return x, y
@@ -347,15 +353,15 @@ def test3d(config):
 
     batch_manager.start_thread(sess)
     x, y = batch_manager.batch()
-    x_ = x.eval(session=sess)    
+    x_ = x.eval(session=sess)
     batch_manager.stop_thread()
-    
+
     x_ = (x_+1)*127.5 # [0, 255]
     x_ = np.mean(x_, axis=1) # yx
     save_image(x_, '{}/x_fixed.png'.format(config.model_dir))
 
     # random pick from parameter space
-    sample = batch_manager.random_list(config.batch_size)    
+    sample = batch_manager.random_list(config.batch_size)
     save_image(sample['xy'], '{}/xy.png'.format(config.model_dir))
     save_image(sample['zy'], '{}/zy.png'.format(config.model_dir))
     save_image(sample['xym'], '{}/xym.png'.format(config.model_dir))

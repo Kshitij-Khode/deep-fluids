@@ -15,30 +15,20 @@ class Trainer3(Trainer):
         if self.use_c:
             self.G_s, self.G_var = GeneratorBE3(self.y, self.filters, self.output_shape,
                                                num_conv=self.num_conv, repeat=self.repeat)
-            print('G_s.shape:')
-            print(self.G_s.shape)
+
+            # print('trainer3.build_model: self.G_s.shape: Pre-jacobian:')
+            # print(self.G_s.shape)
+
             _, self.G_ = jacobian3(self.G_s)
-            print('G_.shape:')
-            print(self.G_.shape)
+
+            # print('trainer3.build_model: self.G_s.shape: Post-jacobian:')
+            # print(self.G_.shape)
         else:
             self.G_, self.G_var = GeneratorBE3(self.y, self.filters, self.output_shape,
                                               num_conv=self.num_conv, repeat=self.repeat)
         self.G = denorm_img3(self.G_) # for debug
-
-        for key in self.G.keys():
-            print('self.G[%s].shape:' % key)
-            print(self.G[key].shape)
-
         self.G_jaco_, self.G_vort_ = jacobian3(self.G_)
-
-        print('self.G_vort_.shape:')
-        print(self.G_vort_.shape)
-
         self.G_vort = denorm_img3(self.G_vort_)
-
-        for key in self.G_vort.keys():
-            print('self.G_vort[%s].shape:' % key)
-            print(self.G_vort[key].shape)
 
         if 'dg' in self.arch:
             # discriminator
@@ -195,21 +185,125 @@ class Trainer3(Trainer):
         self.saver.save(self.sess, save_path, global_step=self.step)
         self.batch_manager.stop_thread()
 
+
     def build_test_model(self):
         # build a model for testing
         self.z = tf.placeholder(dtype=tf.float32, shape=[self.test_b_num, self.c_num])
         if self.use_c:
             self.G_s, _ = GeneratorBE3(self.z, self.filters, self.output_shape,
                                       num_conv=self.num_conv, repeat=self.repeat, reuse=True)
-            print('G_s.shape')
-            print(self.G_s.shape)
-            self.G_ = curl(self.G_s)
-            print('G_.shape')
-            print(self.G_.shape)
+            # self.G_ = curl(self.G_s)
+            _, self.G_ = jacobian3(self.G_s)
         else:
             self.G_, _ = GeneratorBE3(self.z, self.filters, self.output_shape,
                                      num_conv=self.num_conv, repeat=self.repeat, reuse=True)
-            # self.G_ = denorm_img3(self.G_) # for debug
+        self.G_denorm = denorm_gen(self.G_)
+
+        self.zyImgPlane = tf.transpose(
+                tf.squeeze(
+                tf.slice(
+                    self.G_denorm,
+                    [0,0,0,int(self.G_denorm.shape.as_list()[3]/2),0],
+                    [-1,-1,-1,1,-1]
+                ),
+                [3]), [0,2,1,3])
+
+        self.xyImgPlane = tf.squeeze(
+                tf.slice(
+                    self.G_denorm,
+                    [0,int(self.G_denorm.shape.as_list()[1]/2),0,0,0],
+                    [-1,1,-1,-1,-1]
+                ),
+                [1])
+
+
+    def test_(self):
+        self.build_test_model()
+
+        p1, p2 = 10, 2
+
+        # eval
+        y1 = int(self.batch_manager.y_num[0])
+        y2 = int(self.batch_manager.y_num[1])
+        y3 = int(self.batch_manager.y_num[2])
+
+        assert(y3 % self.test_b_num == 0)
+        niter = int(y3 / self.test_b_num)
+
+        c1 = p1/float(y1-1)*2-1
+        c2 = p2/float(y2-1)*2-1
+
+        z_range = [-1, 1]
+        z_varying = np.linspace(z_range[0], z_range[1], num=y3)
+        z_shape = (y3, self.c_num)
+
+        z_c = np.zeros(shape=z_shape)
+        z_c[:,0] = c1
+        z_c[:,1] = c2
+        z_c[:,-1] = z_varying
+
+        # save
+        title = '%d_%d' % (p1,p2)
+        out_dir = os.path.join(self.model_dir, title)
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        G = []
+        GDenorm = []
+        for b in range(niter):
+            G_, G_denorm, xyImg, zyImg = self.sess.run([self.G_, self.G_denorm, self.xyImgPlane, self.zyImgPlane], {self.z: z_c[self.test_b_num*b:self.test_b_num*(b+1),:]})
+
+            # print('trainer3.test_: G_[0,0,0,0]: Pre-denorm scaling: %s' % G_[0,0,0,0])
+            G_, _ = self.batch_manager.denorm(x=G_)
+            # print('trainer3.test_: G_[0,0,0,0]: Post-denorm scaling: %s' % G_[0,0,0,0])
+            # print('trainer3.test_: G_normbat[0,0,0,0]: Post-denorm scaling: %s' % G_normbat[0,0,0,0])
+            # print('trainer.test_: G_.shape: Post batchDenorm')
+            # print(G_.shape)
+
+            imgPathXY = os.path.join(out_dir, '{}_xy.png'.format(b))
+            save_image(xyImg, imgPathXY, nrow=self.b_num, padding=1)
+            imgPathZY = os.path.join(out_dir, '{}_zy.png'.format(b))
+            save_image(zyImg, imgPathZY, nrow=self.b_num, padding=1)
+
+            G.append(G_)
+            GDenorm.append(G_denorm)
+
+        G = np.concatenate(G, axis=0)
+        GDenorm = np.concatenate(GDenorm, axis=0)
+
+        print(GDenorm.shape)
+
+        for i, G_ in enumerate(G):
+            # dump_path = os.path.join(out_dir, '%d.npz' % i)
+            # np.savez_compressed(dump_path, x=G_)
+
+            # print('trainer.test_: G_.shape: Pre-save')
+            # print(G_.shape)
+
+            with open(os.path.join(out_dir, '%d.fga' % i), 'w') as f:
+                f.write('64,96,64,-1.0,-1.0,-1.0,1.0,1.0,1.0')
+                for fd in range(64):
+                    for sd in range(96):
+                        for td in range(64):
+                            f.write(',%s' % G_[fd,sd,td,0])
+                            f.write(',%s' % G_[fd,sd,td,1])
+                            f.write(',%s' % G_[fd,sd,td,2])
+
+        for i, G_denorm in enumerate(GDenorm):
+            # dump_path = os.path.join(out_dir, '%d_norm.npz' % i)
+            # np.savez_compressed(dump_path, x=G_denorm)
+
+            print('trainer.test_: G_denorm.shape: Pre-save')
+            print(G_denorm.shape)
+
+            with open(os.path.join(out_dir, '%d-denorm.fga' % i), 'w') as f:
+                f.write('64,96,64,-1.0,-1.0,-1.0,1.0,1.0,1.0')
+                for fd in range(64):
+                    for sd in range(96):
+                        for td in range(64):
+                            f.write(',%s' % G_denorm[fd,sd,td,0])
+                            f.write(',%s' % G_denorm[fd,sd,td,1])
+                            f.write(',%s' % G_denorm[fd,sd,td,2])
 
 
     def generate(self, inputs, root_path=None, idx=None):
