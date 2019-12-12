@@ -220,7 +220,8 @@ class Trainer3(Trainer):
     def test_(self):
         self.build_test_model()
 
-        p1, p2 = 10, 2
+        # p1, p2 = 10, 2
+        p1, p2 = 5, 1
 
         # eval
         y1 = int(self.batch_manager.y_num[0])
@@ -228,7 +229,6 @@ class Trainer3(Trainer):
         y3 = int(self.batch_manager.y_num[2])
 
         assert(y3 % self.test_b_num == 0)
-        niter = int(y3 / self.test_b_num)
 
         c1 = p1/float(y1-1)*2-1
         c2 = p2/float(y2-1)*2-1
@@ -241,6 +241,23 @@ class Trainer3(Trainer):
         z_c[:,0] = c1
         z_c[:,1] = c2
         z_c[:,-1] = z_varying
+
+        # trainZInp = np.array([[-1.0,  0.0,  0.0],
+        #                      [ 0.0,  0.0,  0.0],
+        #                      [ 1.0,  0.0,  0.0],
+        #                      [ 0.0, -1.0,  0.0],
+        #                      [ 0.0,  0.0,  0.0],
+        #                      [ 0.0,  1.0,  0.0],
+        #                      [ 0.0,  0.0, -1.0],
+        #                      [ 0.0,  0.0,  0.0],
+        #                      [ 0.0,  0.0,  1.0],
+        #                      [-0.6, -1.0,  0.31543624],
+        #                      [ 0.8, 0.333333, 0.2885906],
+        #                      [ 0.8, -1.0,  0.48993289]])
+        # z_c = np.concatenate((z_c, trainZInp), axis=0)
+        print('z_c: %s' % z_c)
+
+        niter = int(z_c.shape[0]/self.test_b_num)
 
         # save
         title = '%d_%d' % (p1,p2)
@@ -293,8 +310,8 @@ class Trainer3(Trainer):
             # dump_path = os.path.join(out_dir, '%d_norm.npz' % i)
             # np.savez_compressed(dump_path, x=G_denorm)
 
-            print('trainer.test_: G_denorm.shape: Pre-save')
-            print(G_denorm.shape)
+            # print('trainer.test_: G_denorm.shape: Pre-save')
+            # print(G_denorm.shape)
 
             with open(os.path.join(out_dir, '%d-denorm.fga' % i), 'w') as f:
                 f.write('64,96,64,-1.0,-1.0,-1.0,1.0,1.0,1.0')
